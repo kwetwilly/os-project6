@@ -1,3 +1,9 @@
+// Kyle Williams
+// Thomas Franceschi
+// CSE 30341-01
+// Professor Thain
+// Project 6
+// Due: 5/3/17
 
 #include "fs.h"
 #include "disk.h"
@@ -46,9 +52,18 @@ void fs_debug()
 	disk_read(0,block.data);
 
 	printf("superblock:\n");
-	printf("    %d blocks\n",block.super.nblocks);
-	printf("    %d inode blocks\n",block.super.ninodeblocks);
-	printf("    %d inodes\n",block.super.ninodes);
+
+	// check for valid magic number
+	if(block.super.magic == FS_MAGIC){
+		printf("    magic number is valid\n");
+	}
+	else{
+		printf("    magic number is invalid\n");
+	}
+
+	printf("    %d blocks on disk\n",block.super.nblocks);
+	printf("    %d block(s) for inodes\n",block.super.ninodeblocks);
+	printf("    %d inodes total\n",block.super.ninodes);
 }
 
 int fs_mount()
