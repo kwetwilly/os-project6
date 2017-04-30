@@ -22,7 +22,7 @@
 #define POINTERS_PER_BLOCK 1024
 
 // globals
-// int free_block_bitmap[]
+int *FREE_BLOCK_BITMAP = NULL;
 
 struct fs_superblock {
 	int magic;
@@ -53,6 +53,11 @@ int fs_format()
 {
 	union fs_block block;
 
+	// if disk is already mounted
+	if(FREE_BLOCK_BITMAP != NULL){
+		return 0;
+	}
+
 	// set super block data
 	block.super.magic = FS_MAGIC;
 	block.super.nblocks = disk_size();
@@ -63,7 +68,7 @@ int fs_format()
 	char raw_data[4096] = {0};
 	char *data = raw_data;
 	int i;
-	for(i = 1; i < block.super.ninodeblocks; i++){
+	for(i = 1; i <= block.super.ninodeblocks; i++){
 		// could read data from inode block and check for validity before writting, but that
 		//  would mean more reads...
 		disk_write(i, data);
@@ -152,7 +157,77 @@ void fs_debug()
 //  return one on success, zero otherwise
 int fs_mount()
 {
-	return 0;
+	union fs_block block;
+
+	// check for magic number in super block
+	disk_read(0, block.data);
+
+	int magic = block.super.magic;
+	int nblocks = block.super.nblocks;
+	int ninodeblocks = block.super.ninodeblocks;
+
+	if(block.super.magic != FS_MAGIC){
+		printf("ERROR: invalid magic number on super block: %x", magic);
+		return 0;
+	}
+
+	// build free block bit map
+	FREE_BLOCK_BITMAP = (int*) malloc(sizeof(int) * nblocks);
+
+	// initialize to zeros
+	int j;
+	for(j = 0; j < nblocks; j++){
+		FREE_BLOCK_BITMAP[j] = 0;
+	}
+
+	// set super block to 1
+	FREE_BLOCK_BITMAP[0] = 1;
+
+	// read inode blocks
+	int i;
+	for(i = 1; i <= ninodeblocks; i++){
+		disk_read(i, block.data);
+
+		int j;
+		for(j = 0; j < INODES_PER_BLOCK; j++){
+			// identify inode block in bitmap
+			if(block.inode[j].isvalid){
+				FREE_BLOCK_BITMAP[i] = 1;
+
+				// identify direct data blocks in bitmap
+				int k;
+				for(k = 0; k < POINTERS_PER_INODE; k++){
+					int direct_block = block.inode[j].direct[k];
+					if(direct_block != 0){
+						FREE_BLOCK_BITMAP[direct_block] = 1;
+					}
+				}
+
+				// if there is an indirect section, identify the corresponding data blocks
+				int indirect = block.inode[j].indirect;
+				if(indirect != 0){
+					FREE_BLOCK_BITMAP[indirect] = 1;
+					disk_read(indirect, block.data);
+						int l;
+						for(l = 0; l < POINTERS_PER_BLOCK; l++){
+							int block_ptr = block.pointers[l];
+							if(block_ptr != 0){
+								FREE_BLOCK_BITMAP[block_ptr] = 1;
+							}
+						}
+				}
+				// read the inode block data again before the next iteration
+				disk_read(i, block.data);
+			}
+		}
+	}
+
+	// int x;
+	// for(x = 0; x < nblocks; x++){
+	// 	printf("block number %d: %d\n", x, FREE_BLOCK_BITMAP[x]);
+	// }
+
+	return 1;
 }
 
 int fs_create()
