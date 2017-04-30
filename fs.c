@@ -222,17 +222,65 @@ int fs_mount()
 		}
 	}
 
-	// int x;
-	// for(x = 0; x < nblocks; x++){
-	// 	printf("block number %d: %d\n", x, FREE_BLOCK_BITMAP[x]);
-	// }
+	int x;
+	for(x = 0; x < nblocks; x++){
+		printf("block number %d: %d\n", x, FREE_BLOCK_BITMAP[x]);
+	}
 
 	return 1;
 }
 
+// create a new inode of zero length, on success: return the (positive) inumber, on failure: return zero
 int fs_create()
 {
-	return 0;
+	union fs_block block;
+
+	int nblocks;
+
+	int inumber;
+	// iterate through inode blocks to find open space for inode
+	disk_read(0, block.data);
+	int i;
+	for(i = 1; i <= block.super.ninodeblocks; i++){
+		disk_read(i, block.data);
+
+		int j;
+		for(j = 0; j < INODES_PER_BLOCK; j++){
+			if(block.inode[j].isvalid == 0){
+				// calculate inumber
+				inumber = ((i-1) * 128) + j;
+
+				printf("%d\n", inumber);
+
+				// at the first open (invalid) inode, set isvalid to 1 and size to 0, and write back
+				block.inode[j].isvalid = 1;
+				block.inode[j].size = 0;
+				disk_write(i, block.data);
+
+				// set the index of this new inode in the bit map to 1
+				FREE_BLOCK_BITMAP[i] = 1;
+
+				// to break out of both loops
+				disk_read(0, block.data);
+
+				nblocks = block.super.nblocks;
+
+				i = block.super.ninodeblocks + 1;
+				break;
+			}
+		}
+	}
+
+	int x;
+	for(x = 0; x < nblocks; x++){
+		printf("block number %d: %d\n", x, FREE_BLOCK_BITMAP[x]);
+	}
+
+	// return the inumber
+	return inumber;
+
+	// TODO : ERROR checking, returning 0
+	// return 0;
 }
 
 int fs_delete( int inumber )
