@@ -40,16 +40,21 @@ union fs_block {
 	char data[DISK_BLOCK_SIZE];
 };
 
+// creates a new filesystem on the disk, destroying any data already present
+//  sets aside ten percent of the blocks for inodes, clears the inode table, and writes the superblock
+//  returns one on success, zero otherwise
+//  an attempt to format an already-mounted disk should do nothing and return zero
 int fs_format()
 {
 	return 0;
 }
 
+// scan a mounted filesystem and report on how the inodes and blocks are organized
 void fs_debug()
 {
 	union fs_block block;
 
-	disk_read(0,block.data);
+	disk_read(0, block.data);
 
 	printf("superblock:\n");
 
@@ -61,9 +66,57 @@ void fs_debug()
 		printf("    magic number is invalid\n");
 	}
 
-	printf("    %d blocks on disk\n",block.super.nblocks);
-	printf("    %d block(s) for inodes\n",block.super.ninodeblocks);
-	printf("    %d inodes total\n",block.super.ninodes);
+	printf("    %d blocks on disk\n", block.super.nblocks);
+	printf("    %d block(s) for inodes\n", block.super.ninodeblocks);
+	printf("    %d inodes total\n", block.super.ninodes);
+
+	// read inode data from each inode block, starting at block 1
+	int i;
+	for(i = 1; i <= block.super.ninodeblocks; i++){
+		disk_read(i, block.data);
+
+		// for each inode in the block with a valid bit...
+		int j;
+		for(j = 0; j < INODES_PER_BLOCK; j++){
+
+			if(block.inode[j].isvalid){
+				// print inode number and size
+				printf("inode %d:\n", j);
+				printf("    size: %d bytes\n", block.inode[j].size);
+
+				// print inode direct blocks if they are not NULL (0)
+				printf("    direct blocks: ");
+				int k;
+				for(k = 0; k < POINTERS_PER_INODE; k++){
+					if(block.inode[j].direct[k]){
+						printf("%d ", block.inode[j].direct[k]);
+					}
+				}
+				printf("\n");
+
+				// if there is a non-zero indirect byte...
+				if(block.inode[j].indirect){
+					printf("    indirect block: %d\n", block.inode[j].indirect);
+
+					// read the indirect block (array of ints) at the location given by the indirect integer
+					disk_read(block.inode[j].indirect, block.data);
+
+					// print the location of the indirect data blocks from the pointers array if non-zero
+					printf("    indirect data blocks: ");
+					int l;
+					for(l = 0; l < POINTERS_PER_BLOCK; l++){
+						if(block.pointers[l]){
+							printf("%d ", block.pointers[l]);
+						}
+					}
+					printf("\n");
+				}
+				// read the inode block data again before the next iteration
+				disk_read(i, block.data);
+			}
+
+		}
+	}
 }
 
 int fs_mount()
