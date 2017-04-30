@@ -21,6 +21,9 @@
 #define POINTERS_PER_INODE 5
 #define POINTERS_PER_BLOCK 1024
 
+// globals
+// int free_block_bitmap[]
+
 struct fs_superblock {
 	int magic;
 	int nblocks;
@@ -56,11 +59,13 @@ int fs_format()
 	block.super.ninodeblocks = ceil(block.super.nblocks * (0.10));
 	block.super.ninodes = block.super.ninodeblocks * INODES_PER_BLOCK;
 
-	// destory any data already present on disk
+	// destory any data already present on disk by making all valid inodes invalid
 	char raw_data[4096] = {0};
 	char *data = raw_data;
 	int i;
-	for(i = 0; i < disk_size(); i++){
+	for(i = 1; i < block.super.ninodeblocks; i++){
+		// could read data from inode block and check for validity before writting, but that
+		//  would mean more reads...
 		disk_write(i, data);
 	}
 	
