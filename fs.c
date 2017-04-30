@@ -14,6 +14,8 @@
 #include <errno.h>
 #include <unistd.h>
 
+#include <math.h>
+
 #define FS_MAGIC           0xf0f03410
 #define INODES_PER_BLOCK   128
 #define POINTERS_PER_INODE 5
@@ -46,7 +48,28 @@ union fs_block {
 //  an attempt to format an already-mounted disk should do nothing and return zero
 int fs_format()
 {
-	return 0;
+	union fs_block block;
+
+	// set super block data
+	block.super.magic = FS_MAGIC;
+	block.super.nblocks = disk_size();
+	block.super.ninodeblocks = ceil(block.super.nblocks * (0.10));
+	block.super.ninodes = block.super.ninodeblocks * INODES_PER_BLOCK;
+
+	// destory any data already present on disk
+	char raw_data[4096] = {0};
+	char *data = raw_data;
+	int i;
+	for(i = 0; i < disk_size(); i++){
+		disk_write(i, data);
+	}
+	
+	disk_write(0, block.data);
+
+	return 1;
+
+	// TODO: ERROR Checking, return 0, how can this fail?
+
 }
 
 // scan a mounted filesystem and report on how the inodes and blocks are organized
@@ -119,6 +142,9 @@ void fs_debug()
 	}
 }
 
+// examine the disk for a filesystem
+//  if one is present, read the superblock, build a free block bitmap, and prepare the filesystem for use
+//  return one on success, zero otherwise
 int fs_mount()
 {
 	return 0;
