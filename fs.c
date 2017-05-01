@@ -114,7 +114,7 @@ void fs_debug()
 
 			if(block.inode[j].isvalid){
 				// print inode number and size
-				int inumber = (i-1) * 128) + j;
+				int inumber = ((i-1) * 128) + j;
 				printf("inode %d:\n", inumber);
 				printf("    size: %d bytes\n", block.inode[j].size);
 
