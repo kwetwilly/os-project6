@@ -1,7 +1,7 @@
 GCC=/usr/bin/gcc
 
 simplefs: shell.o fs.o disk.o
-	$(GCC) shell.o fs.o disk.o -o simplefs
+	$(GCC) shell.o fs.o disk.o -o simplefs -lm
 
 shell.o: shell.c
 	$(GCC) -Wall shell.c -c -o shell.o -g
