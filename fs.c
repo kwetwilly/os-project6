@@ -283,8 +283,40 @@ int fs_create()
 	// return 0;
 }
 
+//Delete the inode indicated by the inumber. Release all data and 
+//indirect blocks assigned to this inode and return them to the free 
+//block map. On success, return one. On failure, return 0.
 int fs_delete( int inumber )
 {
+	union fs_block block;
+	
+	int blocknum = 1; //block num
+	int inodenum = 1; //index num
+	
+	//generate index numbers
+	while(inumber >= INODES_PER_BLOCK){
+		blocknum++;
+		inumber -= INODES_PER_BLOCK;
+	}
+	inodenum = inumber;
+
+	disk_read(blocknum, block.data);
+	block.inode[inodenum].isvalid = 0;
+	block.inode[inodenum].size = 0;
+	disk_write(blocknum, block.data);
+
+	//check if block is now empty and update table
+	
+	int i = 1;
+	FREE_BLOCK_BITMAP[blocknum] = 0;
+	for( i = 1; i <= INODES_PER_BLOCK; i++){	
+		if(block.inode[i].isvalid){
+			FREE_BLOCK_BITMAP[blocknum] = 1;
+		}
+	}
+
+
+
 	return 0;
 }
 
