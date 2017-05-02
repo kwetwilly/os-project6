@@ -114,7 +114,7 @@ void fs_debug()
 
 			if(block.inode[j].isvalid){
 				// print inode number and size
-				int inumber = ((i-1) * 128) + j;
+				int inumber = ((i-1) * 128) + (j+1);
 				printf("inode %d:\n", inumber);
 				printf("    size: %d bytes\n", block.inode[j].size);
 
@@ -249,13 +249,18 @@ int fs_create()
 		for(j = 0; j < INODES_PER_BLOCK; j++){
 			if(block.inode[j].isvalid == 0){
 				// calculate inumber
-				inumber = ((i-1) * 128) + j;
+				inumber = ((i-1) * 128) + (j+1);
 
 				printf("%d\n", inumber);
 
 				// at the first open (invalid) inode, set isvalid to 1 and size to 0, and write back
 				block.inode[j].isvalid = 1;
 				block.inode[j].size = 0;
+				int k;
+				for(k = 0; k < POINTERS_PER_INODE; k++){
+					block.inode[j].direct[k] = 0;
+				}
+				block.inode[j].indirect = 0;
 				disk_write(i, block.data);
 
 				// set the index of this new inode in the bit map to 1
@@ -295,11 +300,11 @@ int fs_delete( int inumber )
 	int inodenum = 1; //index num
 	
 	//generate index numbers
-	while(inumber >= INODES_PER_BLOCK){
+	while(inumber > INODES_PER_BLOCK){
 		blocknum++;
 		inumber -= INODES_PER_BLOCK;
 	}
-	inodenum = inumber;
+	inodenum = inumber - 1;
 
 	disk_read(blocknum, block.data);
 	block.inode[inodenum].isvalid = 0;
@@ -321,9 +326,25 @@ int fs_delete( int inumber )
 	return 0;
 }
 
+// return the logical size of the given inode, in bytes
 int fs_getsize( int inumber )
 {
-	return -1;
+	union fs_block block;
+	
+	int blocknum = 1; // block num
+	
+	// generate index numbers
+	while(inumber >= INODES_PER_BLOCK){
+		blocknum++;
+		inumber -= INODES_PER_BLOCK;
+	}
+
+	disk_read(blocknum, block.data);
+
+	return block.inode[inumber-1].size;
+
+	// TODO Error checking
+	// return -1;
 }
 
 int fs_read( int inumber, char *data, int length, int offset )
