@@ -334,7 +334,7 @@ int fs_getsize( int inumber )
 	int blocknum = 1; // block num
 	
 	// generate index numbers
-	while(inumber >= INODES_PER_BLOCK){
+	while(inumber > INODES_PER_BLOCK){
 		blocknum++;
 		inumber -= INODES_PER_BLOCK;
 	}
@@ -347,9 +347,95 @@ int fs_getsize( int inumber )
 	// return -1;
 }
 
+// read data from a valid inode, copy "length" bytes from the inode into the "data" pointer, starting at "offset" in the inode
+//  return the total number of bytes read, the number of bytes actually read could be smaller than the number of bytes requested, 
+//  perhaps if the end of the inode is reached, if the given inumber is invalid, or any other error is encountered, return 0
 int fs_read( int inumber, char *data, int length, int offset )
 {
-	return 0;
+	// example of a function call to fs_read()
+	// char buffer[16384];
+	// result = fs_read(inumber,buffer,sizeof(buffer),offset);
+
+	union fs_block block;
+	
+	int blocknum = 1; // block num
+	int inodenum = 1; //index num
+	
+	// generate index numbers
+	while(inumber > INODES_PER_BLOCK){
+		blocknum++;
+		inumber -= INODES_PER_BLOCK;
+	}
+
+	inodenum = inumber - 1;
+
+	// read data from blcok number containing given inumber
+	disk_read(blocknum, block.data);
+
+	// get data from given inode
+	int size = block.inode[inodenum].size;
+	int numblocks = ceil(size/DISK_BLOCK_SIZE) + 1;
+
+	// build an arrray containing the indices corresponding to the data associated with this inode
+	int blocknums[numblocks];
+
+	// add the direct block indices to this array
+	int i;
+	int directblocks = 0;
+	for(i = 0; i < POINTERS_PER_INODE; i++){
+		if(block.inode[inodenum].direct[i]){
+			blocknums[i] = block.inode[inodenum].direct[i];
+			directblocks++;
+		}
+	}
+
+	// add the indirect block indices to this array
+	int indirect = block.inode[inodenum].indirect;
+	if (indirect != 0){
+		disk_read(indirect, block.data);
+
+		int j;
+		for(j = 0; j < POINTERS_PER_BLOCK; j++){
+			if(block.pointers[j]){
+				blocknums[j + directblocks] = block.pointers[j];
+			}
+		}
+	}
+
+	int index_to_start = offset / DISK_BLOCK_SIZE;
+	int blocks_per_length = length / DISK_BLOCK_SIZE;
+	int blocks_to_read = index_to_start + blocks_per_length;
+
+	if(blocks_to_read > numblocks){
+		blocks_to_read = numblocks;
+	}
+
+	int bytes_read = 0;
+	int bytes_left = size;
+	int blocksize = DISK_BLOCK_SIZE;
+
+	int k;
+	int l;
+	for(k = index_to_start; k < blocks_to_read; k++){
+		// see how many bytes are left to be read, if less than the whole block,
+		//  set the block size to this number that's less than 4096
+		bytes_left = size - bytes_read - offset;
+		if(bytes_left < DISK_BLOCK_SIZE){
+			blocksize = bytes_left;
+		}
+
+		// read each data block in the inode data block array
+		disk_read(blocknums[k], block.data);
+		for(l = 0; l < blocksize; l++){
+			data[bytes_read] = block.data[l];
+			bytes_read++;
+		}
+	}
+
+	return bytes_read;
+
+	// TODO - Error Handling
+	// return 0;
 }
 
 int fs_write( int inumber, const char *data, int length, int offset )
