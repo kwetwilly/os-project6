@@ -316,11 +316,10 @@ int fs_delete( int inumber )
 	inodenum = inumber - 1;
 
 	disk_read(blocknum, block.data);
+	if(block.inode[inodenum].isvalid == 0) return 0;
 	block.inode[inodenum].isvalid = 0;
 	block.inode[inodenum].size = 0;
 	disk_write(blocknum, block.data);
-
-	//check if block is now empty and update table
 	
 	int i = 1;
 	//check if inode block is now empty
@@ -392,5 +391,57 @@ int fs_read( int inumber, char *data, int length, int offset )
 
 int fs_write( int inumber, const char *data, int length, int offset )
 {
+
+	int left_to_write = length;
+	
+	//calculate number of blocks needed + remainder size
+	int rem = length;
+	int numblocks = 1;
+	while( rem > DISK_BLOCK_SIZE ){
+		rem -= DISK_BLOCK_SIZE;
+		numblocks++;
+	}
+
+	//Logic to handle direct/inderect blocks
+
+	//write
+
+
+	//while file still has data to write
+	while(left_to_write > 0){
+		int size_written = 4096;
+		int dest_block;
+		
+		//if last block and has uneven write size, adjust write size
+		if(numblocks == 1 && rem > 0){
+			size_written = rem;
+		}
+
+
+		//find destination block
+		dest_block = findBlock();
+
+		left_to_write -= size_written;
+	}
+
+
+	return 0;
+}
+
+int findBlock(){
+
+	//load super block
+	union fs_block block;
+	disk_read(0, block.data);
+
+	int n_inodes = block.super.ninodeblocks;
+	int n_blocks = block.super.nblocks;
+	int i;
+	
+	//Linearly probe data blocks for open block
+	for(i = n_inodes + 1; i < n_blocks; i++){
+		if(FREE_BLOCK_BITMAP[i] == 0) return i;
+	}
+	//ERROR
 	return 0;
 }
