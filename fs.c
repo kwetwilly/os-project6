@@ -151,6 +151,15 @@ void fs_debug()
 
 		}
 	}
+
+	//print bitmap
+	union fs_block testblock;
+	disk_read(0, testblock.data);
+	int nblocks = testblock.super.nblocks;
+	int x;
+	for(x = 0; x < nblocks; x++){
+		printf("block number %d: %d\n", x, FREE_BLOCK_BITMAP[x]);
+	}
 }
 
 // examine the disk for a filesystem
@@ -314,16 +323,45 @@ int fs_delete( int inumber )
 	//check if block is now empty and update table
 	
 	int i = 1;
+	//check if inode block is now empty
 	FREE_BLOCK_BITMAP[blocknum] = 0;
 	for( i = 1; i <= INODES_PER_BLOCK; i++){	
 		if(block.inode[i].isvalid){
 			FREE_BLOCK_BITMAP[blocknum] = 1;
 		}
 	}
-	
 
+	//delete all direct pointers
+	int j;
+	for(j = 0; j < POINTERS_PER_INODE; j++){
+		if (block.inode[inodenum].direct[j] != 0){
+			FREE_BLOCK_BITMAP[block.inode[inodenum].direct[j]] = 0; 				//Set bitmap to 0
+			block.inode[inodenum].direct[j] = 0; 	//Remove pointer
+		}
+	}
+	disk_write(blocknum, block.data);
 
-	return 0;
+	//delete inderect pointers
+	// if there is an indirect section, identify the corresponding data blocks
+	int indirect = block.inode[inodenum].indirect;
+	if(indirect != 0){
+		FREE_BLOCK_BITMAP[indirect] = 0; 			//remove form map[]
+		disk_read(indirect, block.data);
+		int l;
+		for(l = 0; l < POINTERS_PER_BLOCK; l++){
+			int block_ptr = block.pointers[l];
+			if(block_ptr != 0){
+				FREE_BLOCK_BITMAP[block_ptr] = 0; 	//remove all ptrs from map
+			}
+		}
+		disk_write(indirect, block.data);
+
+		disk_read(blocknum, block.data);
+		block.inode[inodenum].indirect = 0; 		//remove inderect pointer
+		disk_write(blocknum, block.data);
+	}
+
+	return 1;
 }
 
 // return the logical size of the given inode, in bytes
