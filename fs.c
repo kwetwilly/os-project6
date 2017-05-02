@@ -315,7 +315,7 @@ int fs_delete( int inumber )
 			FREE_BLOCK_BITMAP[blocknum] = 1;
 		}
 	}
-
+	
 
 
 	return 0;
