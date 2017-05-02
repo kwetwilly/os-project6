@@ -300,11 +300,11 @@ int fs_delete( int inumber )
 	int inodenum = 1; //index num
 	
 	//generate index numbers
-	while(inumber >= INODES_PER_BLOCK){
+	while(inumber > INODES_PER_BLOCK){
 		blocknum++;
 		inumber -= INODES_PER_BLOCK;
 	}
-	inodenum = inumber;
+	inodenum = inumber - 1;
 
 	disk_read(blocknum, block.data);
 	block.inode[inodenum].isvalid = 0;
@@ -326,9 +326,25 @@ int fs_delete( int inumber )
 	return 0;
 }
 
+// return the logical size of the given inode, in bytes
 int fs_getsize( int inumber )
 {
-	return -1;
+	union fs_block block;
+	
+	int blocknum = 1; // block num
+	
+	// generate index numbers
+	while(inumber >= INODES_PER_BLOCK){
+		blocknum++;
+		inumber -= INODES_PER_BLOCK;
+	}
+
+	disk_read(blocknum, block.data);
+
+	return block.inode[inumber-1].size;
+
+	// TODO Error checking
+	// return -1;
 }
 
 int fs_read( int inumber, char *data, int length, int offset )
