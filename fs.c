@@ -292,6 +292,7 @@ int fs_delete( int inumber )
 
 	union fs_block block;
 	union fs_block superblk;
+	union fs_block datablock;
 
 	disk_read(0, superblk.data);
 	//check inode number is in valid range
@@ -350,6 +351,7 @@ int fs_delete( int inumber )
 			if(block_ptr != 0){
 				FREE_BLOCK_BITMAP[block_ptr] = 0; 	//remove all ptrs from map
 			}
+			block_ptr = 0;
 		}
 		disk_write(indirect, block.data);
 
@@ -402,6 +404,7 @@ int fs_getsize( int inumber )
 //  perhaps if the end of the inode is reached, if the given inumber is invalid, or any other error is encountered, return 0
 int fs_read( int inumber, char *data, int length, int offset )
 {
+	printf("inumber: %d\n", inumber);
 	//if no fs mounted, fail
 	if(MOUNTED_FLAG != 1){
 		printf("ERROR: no filesystem mounted\n");
@@ -426,6 +429,7 @@ int fs_read( int inumber, char *data, int length, int offset )
 		blocknum++;
 		inumber -= INODES_PER_BLOCK;
 	}
+	printf("blocknumber: %d\n", blocknum);
 
 	inodenum = inumber - 1;
 
@@ -465,6 +469,7 @@ int fs_read( int inumber, char *data, int length, int offset )
 		int j;
 		for(j = 0; j < POINTERS_PER_BLOCK; j++){
 			if(block.pointers[j]){
+				printf("indirect block: %d\n", block.pointers[j]);
 				blocknums[j + directblocks] = block.pointers[j];
 			}
 		}
@@ -493,6 +498,7 @@ int fs_read( int inumber, char *data, int length, int offset )
 		}
 
 		// read each data block in the inode data block array
+		printf("block %d: %d\n", k, blocknums[k]);
 		disk_read(blocknums[k], block.data);
 		for(l = 0; l < blocksize; l++){
 			data[bytes_read] = block.data[l];
@@ -536,6 +542,8 @@ int fs_write( int inumber, const char *data, int length, int offset )
 		inumber -= INODES_PER_BLOCK;
 	}
 	inodenum = inumber - 1;
+
+	int first_ptr = getLocation(offset);
 	
 	disk_read( blocknum, block.data);
 
@@ -552,53 +560,68 @@ int fs_write( int inumber, const char *data, int length, int offset )
 		rem -= DISK_BLOCK_SIZE;
 		numblocks++;
 	}
+	printf("numblocks: %d\n", numblocks);
 
 	int left_to_write = length;
 	int written = 0;
 	int curr_ptr = 0;
+
 
 	//while file still has data to write
 	while(left_to_write > 0){
 		int size_to_write = 4096;
 		int dest_block;
 
-		//find destination data block to write to
-		if((dest_block = findBlock()));
-		else {
-			printf("ERROR: File too large\n");
-			return 0;
-		}
+		
 
 		//get current pointer location in inode
 		curr_ptr = getLocation( offset + written );
+		printf("curr_ptr: %d\n", curr_ptr);
 
 		//direct or inderect pointer?
 		if(curr_ptr < 5){ 											//direct
+			//find destination data block to write to
+			if((dest_block = findBlock())){
+				//mark block on bitmap as used
+				FREE_BLOCK_BITMAP[dest_block] = 1;
+			}
+			else {
+				printf("ERROR: File too large\n");
+				return 0;
+			}
 			block.inode[inodenum].direct[curr_ptr] = dest_block;
 			disk_write( blocknum, block.data);
 		}
 		else{  														//indirect
 			int indirect = block.inode[inodenum].indirect;
 			if( indirect == 0 ){
-				int new_indir = findBlock();
-				block.inode[inodenum].indirect = new_indir;
-				disk_write(blocknum, block.data);
-				disk_read( new_indir, indirectblock.data);
-					int ptr;
-					for( ptr = 0; ptr < POINTERS_PER_BLOCK; ptr ++){
-						indirectblock.pointers[ptr] = 0;
-					}
-				disk_write( new_indir, indirectblock.data);
-				indirect = new_indir;
+				indirect = findBlock();
+				FREE_BLOCK_BITMAP[indirect] = 1;
+				block.inode[inodenum].indirect = indirect;
+				disk_write(blocknum, block.data);			
+			}
+			//find destination data block to write to
+			if((dest_block = findBlock())){
+				//mark block on bitmap as used
+				FREE_BLOCK_BITMAP[dest_block] = 1;
+			}
+			else {
+				printf("ERROR: File too large\n");
+				return 0;
 			}
 
-			disk_read( indirect, indirectblock.data);
-			indirectblock.pointers[ curr_ptr - 5 ] = dest_block;
-			disk_write( indirect, indirectblock.data);
+			disk_read( block.inode[inodenum].indirect, indirectblock.data);
+			indirectblock.pointers[ curr_ptr - 6 ] = dest_block;
+			
+			int r;
+			for( r = (numblocks - 5) + first_ptr; r < 1024; r++){
+				indirectblock.pointers[r] = 0;
+			}
+			disk_write( block.inode[inodenum].indirect, indirectblock.data);
+			
 		}
 
-		//mark block on bitmap as used
-		FREE_BLOCK_BITMAP[dest_block] = 1;
+
 
 		//if last block and has uneven write size, adjust write size
 		if(left_to_write < 4096){
@@ -629,7 +652,7 @@ int fs_write( int inumber, const char *data, int length, int offset )
 		written += size_to_write;
 		
 	}
-	block.inode[inodenum].size = written;
+	block.inode[inodenum].size += written;
 	disk_write( blocknum, block.data);
 	return written;
 }
