@@ -477,9 +477,26 @@ int fs_read( int inumber, char *data, int length, int offset )
 
 int fs_write( int inumber, const char *data, int length, int offset )
 {
+	//if no fs mounted, fail
 
-	int left_to_write = length;
+	union fs_block block;
+	union fs_block datablock;
+
+	int blocknum = 1; //block num
+	int inodenum = 1; //index num
 	
+	//generate index numbers
+	while(inumber > INODES_PER_BLOCK){
+		blocknum++;
+		inumber -= INODES_PER_BLOCK;
+	}
+	inodenum = inumber - 1;
+	
+	disk_read( blocknum, block.data);
+
+	//make sure inumber is valid
+	if(!block.inode[inodenum].isvalid) return 0;
+
 	//calculate number of blocks needed + remainder size
 	int rem = length;
 	int numblocks = 1;
@@ -488,28 +505,45 @@ int fs_write( int inumber, const char *data, int length, int offset )
 		numblocks++;
 	}
 
-	//Logic to handle direct/inderect blocks
-
-	//write
-
+	int left_to_write = length;
+	int written = 0;
+	int curr_ptr = 0;
 
 	//while file still has data to write
 	while(left_to_write > 0){
 		int size_written = 4096;
 		int dest_block;
-		
-		//if last block and has uneven write size, adjust write size
-		if(numblocks == 1 && rem > 0){
-			size_written = rem;
-		}
 
+		//direct or inderect pointer?
+		curr_ptr = getLocation( offset + written );
+		if(curr_ptr < 5){ //direct
+
+		}
+		else; //indirect
 
 		//find destination block
 		dest_block = findBlock();
 
-		left_to_write -= size_written;
-	}
+		//mark block on bitmap
+		FREE_BLOCK_BITMAP[dest_block] = 1;
 
+		//if last block and has uneven write size, adjust write size
+		if(left_to_write < 4096){
+			size_written = left_to_write;
+		}
+
+		//write to data block
+		if(size_written == 4096){
+			int dest = 0;
+			int src = 0;
+			memcpy(dest, src, 4096);
+		}
+		else; //remainer
+
+		//track how much data is left
+		left_to_write -= size_written;
+		written += size_written;
+	}
 
 	return 0;
 }
@@ -528,6 +562,14 @@ int findBlock(){
 	for(i = n_inodes + 1; i < n_blocks; i++){
 		if(FREE_BLOCK_BITMAP[i] == 0) return i;
 	}
+
 	//ERROR
 	return 0;
+}
+
+int getLocation( int offset ){
+
+	int location = offset / DISK_BLOCK_SIZE;
+	return location;
+
 }

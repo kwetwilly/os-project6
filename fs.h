@@ -14,5 +14,6 @@ int  fs_write( int inumber, const char *data, int length, int offset );
 
 
 int findBlock();
+int getLocation( int offset );
 
 #endif
