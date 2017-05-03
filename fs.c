@@ -306,6 +306,14 @@ int fs_create()
 int fs_delete( int inumber )
 {
 	union fs_block block;
+	union fs_block superblk;
+
+	disk_read(0, superblk.data);
+	//check inode number is in valid range
+	if (inumber > superblk.super.ninodes){
+		printf("ERROR: Inode our of range\n");
+		return 0;
+	}
 	
 	int blocknum = 1; //block num
 	int inodenum = 1; //index num
@@ -318,7 +326,10 @@ int fs_delete( int inumber )
 	inodenum = inumber - 1;
 
 	disk_read(blocknum, block.data);
-	if(block.inode[inodenum].isvalid == 0) return 0;
+	if(block.inode[inodenum].isvalid == 0){
+		printf("ERROR: Invalid inode\n");
+		return 0;
+	}
 	block.inode[inodenum].isvalid = 0;
 	block.inode[inodenum].size = 0;
 	disk_write(blocknum, block.data);
@@ -358,7 +369,7 @@ int fs_delete( int inumber )
 		disk_write(indirect, block.data);
 
 		disk_read(blocknum, block.data);
-		block.inode[inodenum].indirect = 0; 		//remove inderect pointer
+		block.inode[inodenum].indirect = 0; 		//remove indirect pointer
 		disk_write(blocknum, block.data);
 	}
 
