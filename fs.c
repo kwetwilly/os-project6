@@ -512,7 +512,7 @@ int fs_write( int inumber, const char *data, int length, int offset )
 
 	//while file still has data to write
 	while(left_to_write > 0){
-		int size_written = 4096;
+		int size_to_write = 4096;
 		int dest_block;
 
 		//find destination data block to write to
@@ -528,6 +528,9 @@ int fs_write( int inumber, const char *data, int length, int offset )
 		}
 		else{  														//indirect
 			int indirect = block.inode[inodenum].indirect;
+			if( indirect == 0 ){
+				//create indirect block
+			}
 
 			disk_read( indirect, indirectblock.data);
 			indirectblock.pointers[ curr_ptr - 5 ] = dest_block;
@@ -539,23 +542,34 @@ int fs_write( int inumber, const char *data, int length, int offset )
 
 		//if last block and has uneven write size, adjust write size
 		if(left_to_write < 4096){
-			size_written = left_to_write;
+			size_to_write = left_to_write;
 		}
 
 		//write to data block
-		if(size_written == 4096){
-			int dest = 0;
-			int src = 0;
-			//memcpy(dest, src, 4096);
+		int i;
+		char chunk[4096];
+		for( i = 0; i < size_to_write; i++){
+			chunk[i] = data[ i + written ];
 		}
-		else; //remainer
+
+		if(size_to_write == 4096){
+			memcpy(datablock.data, chunk, 4096);
+		}
+		else{
+			char remchunk[rem];
+			int j;
+			for( j = 0; j < rem; j++){
+				remchunk[j] = chunk[j];
+			}
+			disk_write(dest_block, remchunk);
+		}
 
 		//track how much data is left
-		left_to_write -= size_written;
-		written += size_written;
+		left_to_write -= size_to_write;
+		written += size_to_write;
 	}
 
-	return 0;
+	return written;
 }
 
 int findBlock(){
