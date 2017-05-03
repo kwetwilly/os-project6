@@ -495,14 +495,6 @@ int fs_write( int inumber, const char *data, int length, int offset )
 	union fs_block datablock;
 	union fs_block indirectblock;
 
-	//make sure file isnt too big
-	disk_read(0, superblk.data);
-	int data_size = (superblk.super.nblocks - superblk.super.ninodeblocks - 1) * DISK_BLOCK_SIZE;
-	if( length > data_size){
-		printf("ERROR: File too large");
-		return 0;
-	}
-
 	int blocknum = 1; //block num
 	int inodenum = 1; //index num
 	
@@ -539,7 +531,11 @@ int fs_write( int inumber, const char *data, int length, int offset )
 		int dest_block;
 
 		//find destination data block to write to
-		dest_block = findBlock();
+		if((dest_block = findBlock()));
+		else {
+			printf("ERROR: File too large");
+			return 0;
+		}
 
 		//get current pointer location in inode
 		curr_ptr = getLocation( offset + written );
@@ -578,7 +574,7 @@ int fs_write( int inumber, const char *data, int length, int offset )
 		}
 
 		if(size_to_write == 4096){
-			memcpy(datablock.data, chunk, 4096);
+			disk_write(dest_block, chunk);
 		}
 		else{
 			char remchunk[rem];
