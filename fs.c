@@ -300,6 +300,14 @@ int fs_create()
 int fs_delete( int inumber )
 {
 	union fs_block block;
+	union fs_block superblk;
+
+	disk_read(0, superblk.data);
+	//check inode number is in valid range
+	if (inumber > superblk.super.ninodes){
+		printf("ERROR: Inode our of range\n");
+		return 0;
+	}
 	
 	int blocknum = 1; //block num
 	int inodenum = 1; //index num
@@ -312,7 +320,10 @@ int fs_delete( int inumber )
 	inodenum = inumber - 1;
 
 	disk_read(blocknum, block.data);
-	if(block.inode[inodenum].isvalid == 0) return 0;
+	if(block.inode[inodenum].isvalid == 0){
+		printf("ERROR: Invalid inode\n");
+		return 0;
+	}
 	block.inode[inodenum].isvalid = 0;
 	block.inode[inodenum].size = 0;
 	disk_write(blocknum, block.data);
@@ -352,7 +363,7 @@ int fs_delete( int inumber )
 		disk_write(indirect, block.data);
 
 		disk_read(blocknum, block.data);
-		block.inode[inodenum].indirect = 0; 		//remove inderect pointer
+		block.inode[inodenum].indirect = 0; 		//remove indirect pointer
 		disk_write(blocknum, block.data);
 	}
 
@@ -498,14 +509,6 @@ int fs_write( int inumber, const char *data, int length, int offset )
 	union fs_block datablock;
 	union fs_block indirectblock;
 
-	//make sure file isnt too big
-	disk_read(0, superblk.data);
-	int data_size = (superblk.super.nblocks - superblk.super.ninodeblocks - 1) * DISK_BLOCK_SIZE;
-	if( length > data_size){
-		printf("ERROR: File too large");
-		return 0;
-	}
-
 	int blocknum = 1; //block num
 	int inodenum = 1; //index num
 	
@@ -542,7 +545,11 @@ int fs_write( int inumber, const char *data, int length, int offset )
 		int dest_block;
 
 		//find destination data block to write to
-		dest_block = findBlock();
+		if((dest_block = findBlock()));
+		else {
+			printf("ERROR: File too large");
+			return 0;
+		}
 
 		//get current pointer location in inode
 		curr_ptr = getLocation( offset + written );
@@ -581,7 +588,7 @@ int fs_write( int inumber, const char *data, int length, int offset )
 		}
 
 		if(size_to_write == 4096){
-			memcpy(datablock.data, chunk, 4096);
+			disk_write(dest_block, chunk);
 		}
 		else{
 			char remchunk[rem];
