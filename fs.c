@@ -511,9 +511,15 @@ int fs_write( int inumber, const char *data, int length, int offset )
 	}
 
 	union fs_block block;
-	union fs_block superblk;
-	union fs_block datablock;
 	union fs_block indirectblock;
+	union fs_block superblk;
+
+	disk_read(0, superblk.data);
+	//check inode number is in valid range
+	if (inumber > superblk.super.ninodes){
+		printf("ERROR: Inode our of range\n");
+		return 0;
+	}
 
 	int blocknum = 1; //block num
 	int inodenum = 1; //index num
