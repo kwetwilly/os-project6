@@ -55,7 +55,8 @@ int fs_format()
 	union fs_block block;
 
 	// if disk is already mounted
-	if(FREE_BLOCK_BITMAP != NULL){
+	if(MOUNTED_FLAG == 1){
+		printf("ERROR: filesystem already mounted\n");
 		return 0;
 	}
 
@@ -78,8 +79,6 @@ int fs_format()
 	disk_write(0, block.data);
 
 	return 1;
-
-	// TODO: ERROR Checking, return 0, how can this fail?
 
 }
 
@@ -241,8 +240,6 @@ int fs_create()
 
 	union fs_block block;
 
-	int nblocks;
-
 	int inumber;
 	// iterate through inode blocks to find open space for inode
 	disk_read(0, block.data);
@@ -255,8 +252,6 @@ int fs_create()
 			if(block.inode[j].isvalid == 0){
 				// calculate inumber
 				inumber = ((i-1) * 128) + (j+1);
-
-				printf("%d\n", inumber);
 
 				// at the first open (invalid) inode, set isvalid to 1 and size to 0, and write back
 				block.inode[j].isvalid = 1;
@@ -288,6 +283,13 @@ int fs_create()
 //block map. On success, return one. On failure, return 0.
 int fs_delete( int inumber )
 {
+
+	//if no fs mounted, fail
+	if(MOUNTED_FLAG != 1){
+		printf("ERROR: no filesystem mounted\n");
+		 return 0;
+	}
+
 	union fs_block block;
 	union fs_block superblk;
 
@@ -330,7 +332,7 @@ int fs_delete( int inumber )
 	int j;
 	for(j = 0; j < POINTERS_PER_INODE; j++){
 		if (block.inode[inodenum].direct[j] != 0){
-			FREE_BLOCK_BITMAP[block.inode[inodenum].direct[j]] = 0; 				//Set bitmap to 0
+			FREE_BLOCK_BITMAP[block.inode[inodenum].direct[j]] = 0;  //Set bitmap to 0
 			block.inode[inodenum].direct[j] = 0; 	//Remove pointer
 		}
 	}
@@ -502,6 +504,10 @@ int fs_read( int inumber, char *data, int length, int offset )
 
 }
 
+// write data to a valid inode, copy "length" bytes from the pointer "data" into the inode starting at "offset" bytes allocate
+//  any necessary direct and indirect blocks in the process, return the number of bytes actually written, the number of bytes
+//  actually written could be smaller than the number of bytes request, perhaps if the disk becomes full
+//  If the given inumber is invalid, or any other error is encountered, return 0
 int fs_write( int inumber, const char *data, int length, int offset )
 {
 	//if no fs mounted, fail
@@ -559,7 +565,7 @@ int fs_write( int inumber, const char *data, int length, int offset )
 		//find destination data block to write to
 		if((dest_block = findBlock()));
 		else {
-			printf("ERROR: File too large");
+			printf("ERROR: File too large\n");
 			return 0;
 		}
 
@@ -577,6 +583,13 @@ int fs_write( int inumber, const char *data, int length, int offset )
 				int new_indir = findBlock();
 				block.inode[inodenum].indirect = new_indir;
 				disk_write(blocknum, block.data);
+				disk_read( new_indir, indirectblock.data);
+					int ptr;
+					for( ptr = 0; ptr < POINTERS_PER_BLOCK; ptr ++){
+						indirectblock.pointers[ptr] = 0;
+					}
+				disk_write( new_indir, indirectblock.data);
+				indirect = new_indir;
 			}
 
 			disk_read( indirect, indirectblock.data);
