@@ -481,6 +481,7 @@ int fs_write( int inumber, const char *data, int length, int offset )
 
 	union fs_block block;
 	union fs_block datablock;
+	union fs_block indirectblock;
 
 	int blocknum = 1; //block num
 	int inodenum = 1; //index num
@@ -514,17 +515,26 @@ int fs_write( int inumber, const char *data, int length, int offset )
 		int size_written = 4096;
 		int dest_block;
 
-		//direct or inderect pointer?
-		curr_ptr = getLocation( offset + written );
-		if(curr_ptr < 5){ //direct
-
-		}
-		else; //indirect
-
-		//find destination block
+		//find destination data block to write to
 		dest_block = findBlock();
 
-		//mark block on bitmap
+		//get current pointer location in inode
+		curr_ptr = getLocation( offset + written );
+
+		//direct or inderect pointer?
+		if(curr_ptr < 5){ 											//direct
+			block.inode[inodenum].direct[curr_ptr] = dest_block;
+			disk_write( blocknum, block.data);
+		}
+		else{  														//indirect
+			int indirect = block.inode[inodenum].indirect;
+
+			disk_read( indirect, indirectblock.data);
+			indirectblock.pointers[ curr_ptr - 5 ] = dest_block;
+			disk_write( indirect, indirectblock.data);
+		}
+
+		//mark block on bitmap as used
 		FREE_BLOCK_BITMAP[dest_block] = 1;
 
 		//if last block and has uneven write size, adjust write size
@@ -536,7 +546,7 @@ int fs_write( int inumber, const char *data, int length, int offset )
 		if(size_written == 4096){
 			int dest = 0;
 			int src = 0;
-			memcpy(dest, src, 4096);
+			//memcpy(dest, src, 4096);
 		}
 		else; //remainer
 
