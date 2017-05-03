@@ -502,8 +502,6 @@ int fs_write( int inumber, const char *data, int length, int offset )
 	}
 
 	union fs_block block;
-	union fs_block superblk;
-	union fs_block datablock;
 	union fs_block indirectblock;
 
 	int blocknum = 1; //block num
