@@ -271,27 +271,16 @@ int fs_create()
 				// set the index of this new inode in the bit map to 1
 				FREE_BLOCK_BITMAP[i] = 1;
 
-				// to break out of both loops
-				disk_read(0, block.data);
-
-				nblocks = block.super.nblocks;
-
-				i = block.super.ninodeblocks + 1;
-				break;
+				return inumber;
 			}
 		}
 	}
 
-	int x;
-	for(x = 0; x < nblocks; x++){
-		printf("block number %d: %d\n", x, FREE_BLOCK_BITMAP[x]);
-	}
 
-	// return the inumber
-	return inumber;
+	// return the error if there are no more inodes
+	printf("ERROR: inode table full\n");
+	return 0;
 
-	// TODO : ERROR checking, returning 0
-	// return 0;
 }
 
 //Delete the inode indicated by the inumber. Release all data and 
@@ -305,7 +294,7 @@ int fs_delete( int inumber )
 	disk_read(0, superblk.data);
 	//check inode number is in valid range
 	if (inumber > superblk.super.ninodes){
-		printf("ERROR: Inode our of range\n");
+		printf("ERROR: Inode out of range\n");
 		return 0;
 	}
 	
@@ -376,7 +365,16 @@ int fs_getsize( int inumber )
 	//if no fs mounted, fail
 	if(MOUNTED_FLAG != 1){
 		printf("ERROR: no filesystem mounted\n");
-		 return 0;
+		 return -1;
+	}
+
+	union fs_block superblk;
+
+	disk_read(0, superblk.data);
+	//check inode number is in valid range
+	if (inumber > superblk.super.ninodes){
+		printf("ERROR: Inode out of range\n");
+		return 0;
 	}
 
 	union fs_block block;
@@ -406,6 +404,14 @@ int fs_read( int inumber, char *data, int length, int offset )
 	if(MOUNTED_FLAG != 1){
 		printf("ERROR: no filesystem mounted\n");
 		 return 0;
+	}
+
+	union fs_block superblk;
+	disk_read(0, superblk.data);
+	//check inode number is in valid range
+	if (inumber > superblk.super.ninodes){
+		printf("ERROR: Inode out of range\n");
+		return 0;
 	}
 
 	union fs_block block;
