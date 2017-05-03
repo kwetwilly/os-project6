@@ -23,7 +23,6 @@
 
 // globals
 int *FREE_BLOCK_BITMAP = NULL;
-
 int MOUNTED_FLAG = 0;
 
 struct fs_superblock {
@@ -154,14 +153,6 @@ void fs_debug()
 		}
 	}
 
-	//print bitmap
-	union fs_block testblock;
-	disk_read(0, testblock.data);
-	int nblocks = testblock.super.nblocks;
-	int x;
-	for(x = 0; x < nblocks; x++){
-		printf("block number %d: %d\n", x, FREE_BLOCK_BITMAP[x]);
-	}
 }
 
 // examine the disk for a filesystem
@@ -234,10 +225,6 @@ int fs_mount()
 		}
 	}
 
-	int x;
-	for(x = 0; x < nblocks; x++){
-		printf("block number %d: %d\n", x, FREE_BLOCK_BITMAP[x]);
-	}
 	MOUNTED_FLAG = 1;
 	return 1;
 }
@@ -245,6 +232,13 @@ int fs_mount()
 // create a new inode of zero length, on success: return the (positive) inumber, on failure: return zero
 int fs_create()
 {
+
+	//if no fs mounted, fail
+	if(MOUNTED_FLAG != 1){
+		printf("ERROR: no filesystem mounted\n");
+		 return 0;
+	}
+
 	union fs_block block;
 
 	int nblocks;
@@ -368,6 +362,12 @@ int fs_delete( int inumber )
 // return the logical size of the given inode, in bytes
 int fs_getsize( int inumber )
 {
+	//if no fs mounted, fail
+	if(MOUNTED_FLAG != 1){
+		printf("ERROR: no filesystem mounted\n");
+		 return 0;
+	}
+
 	union fs_block block;
 	
 	int blocknum = 1; // block num
@@ -391,9 +391,11 @@ int fs_getsize( int inumber )
 //  perhaps if the end of the inode is reached, if the given inumber is invalid, or any other error is encountered, return 0
 int fs_read( int inumber, char *data, int length, int offset )
 {
-	// example of a function call to fs_read()
-	// char buffer[16384];
-	// result = fs_read(inumber,buffer,sizeof(buffer),offset);
+	//if no fs mounted, fail
+	if(MOUNTED_FLAG != 1){
+		printf("ERROR: no filesystem mounted\n");
+		 return 0;
+	}
 
 	union fs_block block;
 	
@@ -411,13 +413,16 @@ int fs_read( int inumber, char *data, int length, int offset )
 	// read data from blcok number containing given inumber
 	disk_read(blocknum, block.data);
 
+	// if inode is invalid, return 0
 	if(!block.inode[inodenum].isvalid){
-		printf("ERROR: Invalid inode\n");
+		printf("ERROR: invalid inode\n");
 		return 0;
 	}
 
-	// get data from given inode
+	// get data from given inode, if size is 0, return 0
 	int size = block.inode[inodenum].size;
+	if(size == 0) return 0;
+
 	int numblocks = ceil(size/DISK_BLOCK_SIZE) + 1;
 
 	// build an arrray containing the indices corresponding to the data associated with this inode
@@ -478,8 +483,6 @@ int fs_read( int inumber, char *data, int length, int offset )
 
 	return bytes_read;
 
-	// TODO - Error Handling
-	// return 0;
 }
 
 int fs_write( int inumber, const char *data, int length, int offset )
