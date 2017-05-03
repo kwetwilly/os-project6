@@ -24,6 +24,8 @@
 // globals
 int *FREE_BLOCK_BITMAP = NULL;
 
+int MOUNTED_FLAG = 0;
+
 struct fs_superblock {
 	int magic;
 	int nblocks;
@@ -236,7 +238,7 @@ int fs_mount()
 	for(x = 0; x < nblocks; x++){
 		printf("block number %d: %d\n", x, FREE_BLOCK_BITMAP[x]);
 	}
-
+	MOUNTED_FLAG = 1;
 	return 1;
 }
 
@@ -409,6 +411,11 @@ int fs_read( int inumber, char *data, int length, int offset )
 	// read data from blcok number containing given inumber
 	disk_read(blocknum, block.data);
 
+	if(!block.inode[inodenum].isvalid){
+		printf("ERROR: Invalid inode\n");
+		return 0;
+	}
+
 	// get data from given inode
 	int size = block.inode[inodenum].size;
 	int numblocks = ceil(size/DISK_BLOCK_SIZE) + 1;
@@ -478,10 +485,23 @@ int fs_read( int inumber, char *data, int length, int offset )
 int fs_write( int inumber, const char *data, int length, int offset )
 {
 	//if no fs mounted, fail
+	if(MOUNTED_FLAG != 1){
+		printf("ERROR: no filesystem mounted\n");
+		 return 0;
+	}
 
 	union fs_block block;
+	union fs_block superblk;
 	union fs_block datablock;
 	union fs_block indirectblock;
+
+	//make sure file isnt too big
+	disk_read(0, superblk.data);
+	int data_size = (superblk.super.nblocks - superblk.super.ninodeblocks - 1) * DISK_BLOCK_SIZE;
+	if( length > data_size){
+		printf("ERROR: File too large");
+		return 0;
+	}
 
 	int blocknum = 1; //block num
 	int inodenum = 1; //index num
@@ -496,7 +516,10 @@ int fs_write( int inumber, const char *data, int length, int offset )
 	disk_read( blocknum, block.data);
 
 	//make sure inumber is valid
-	if(!block.inode[inodenum].isvalid) return 0;
+	if(!block.inode[inodenum].isvalid){
+		printf("ERROR: Invalid inode\n");
+		return 0;
+	}
 
 	//calculate number of blocks needed + remainder size
 	int rem = length;
@@ -529,7 +552,9 @@ int fs_write( int inumber, const char *data, int length, int offset )
 		else{  														//indirect
 			int indirect = block.inode[inodenum].indirect;
 			if( indirect == 0 ){
-				//create indirect block
+				int new_indir = findBlock();
+				block.inode[inodenum].indirect = new_indir;
+				disk_write(blocknum, block.data);
 			}
 
 			disk_read( indirect, indirectblock.data);
@@ -567,8 +592,10 @@ int fs_write( int inumber, const char *data, int length, int offset )
 		//track how much data is left
 		left_to_write -= size_to_write;
 		written += size_to_write;
+		
 	}
-
+	block.inode[inodenum].size = written;
+	disk_write( blocknum, block.data);
 	return written;
 }
 
